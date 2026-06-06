@@ -266,26 +266,64 @@ export default function Home() {
   }
 
   // ===== 1つのセリフを音声化して ArrayBuffer(WAV) を返す =====
-  async function ttsOne(text, voice, accent, lineSpeed) {
-    const res = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        voice,
-        accent: accentLabelEn(accent),
-        speed: lineSpeed || 1.0,
-      }),
-    });
-    if (!res.ok) {
+  // 429（レート上限）のときは、待ってから自動で数回リトライします
+  async function ttsOne(text, voice, accent, lineSpeed, onWait) {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const maxRetry = 5;
+
+    for (let attempt = 0; attempt <= maxRetry; attempt++) {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          voice,
+          accent: accentLabelEn(accent),
+          speed: lineSpeed || 1.0,
+        }),
+      });
+
+      if (res.ok) {
+        return await res.arrayBuffer();
+      }
+
+      // レート上限：待ってからリトライ
+      if (res.status === 429 && attempt < maxRetry) {
+        let waitSec = 15;
+        try {
+          const j = await res.json();
+          // サーバーが "rate_limit_wait:30" のように待ち秒数を返すことがある
+          if (typeof j.error === "string" && j.error.startsWith("rate_limit_wait:")) {
+            waitSec = parseInt(j.error.split(":")[1], 10) || 15;
+          } else if (j.detail) {
+            const m = j.detail.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/);
+            if (m) waitSec = Math.ceil(parseFloat(m[1]));
+          }
+        } catch (_) {}
+        // 上限のリセットは1分単位のことが多いので、最低でも少し長めに待つ
+        if (waitSec < 10) waitSec = 10;
+        if (onWait) onWait(waitSec);
+        await sleep((waitSec + 2) * 1000);
+        continue;
+      }
+
+      // それ以外のエラー
       let msg = "音声生成に失敗しました。";
       try {
         const j = await res.json();
-        msg = j.error || msg;
+        if (j.error === "rate_limit") {
+          msg =
+            "利用上限（1分あたりのリクエスト数）に達しました。少し時間を置いてから、もう一度お試しください。";
+        } else {
+          msg = j.error || msg;
+        }
       } catch (_) {}
       throw new Error(msg);
     }
-    return await res.arrayBuffer();
+
+    throw new Error(
+      "利用上限が続いているため、音声を生成できませんでした。数分おいてから再度お試しください。"
+    );
   }
 
   // ===== 複数のWAV音声を1つのWAVにつなげる =====
@@ -343,8 +381,16 @@ export default function Home() {
         const voice = voiceMap[sp] || "Kore";
         const accent = accentMap[sp] || "us";
         const lineSpeed = speedMap[sp] || 1.0;
-        const buf = await ttsOne(lines[i].text, voice, accent, lineSpeed);
+        const buf = await ttsOne(lines[i].text, voice, accent, lineSpeed, (sec) => {
+          setStatusText(
+            `利用上限に近づいたため、${sec}秒ほど待っています… (${i + 1} / ${lines.length})`
+          );
+        });
         buffers.push(buf);
+        // 1分あたりの上限に当たりにくくするため、セリフの間隔を空ける
+        if (i < lines.length - 1) {
+          await new Promise((r) => setTimeout(r, 6500));
+        }
       }
       const combined = combineWavBuffers(buffers);
       setAudioUrl(URL.createObjectURL(combined));
@@ -374,9 +420,17 @@ export default function Home() {
           filled[i].text,
           filled[i].voice,
           filled[i].accent,
-          filled[i].speed
+          filled[i].speed,
+          (sec) => {
+            setStatusText(
+              `利用上限に近づいたため、${sec}秒ほど待っています… (${i + 1} / ${filled.length})`
+            );
+          }
         );
         buffers.push(buf);
+        if (i < filled.length - 1) {
+          await new Promise((r) => setTimeout(r, 6500));
+        }
       }
       const combined = combineWavBuffers(buffers);
       setAudioUrl(URL.createObjectURL(combined));

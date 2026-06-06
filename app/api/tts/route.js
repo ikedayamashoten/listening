@@ -72,9 +72,13 @@ export async function POST(request) {
     const model = "gemini-2.5-flash-preview-tts";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-    // プレビュー版はランダムに500を返すことがあるので最大3回リトライ
+    // 待機用のヘルパー
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    // 500系（プレビュー版の一時的失敗）と429（レート上限）をリトライ
+    // 429のときは、エラーに書かれたretryDelay秒だけ待ってから再試行
     let lastErr = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -111,7 +115,47 @@ export async function POST(request) {
       }
 
       lastErr = await res.text();
-      if (res.status < 500) break;
+
+      // 429（レート上限）：retryDelayを読み取り、その秒数だけ待って再試行
+      if (res.status === 429) {
+        let waitSec = 6; // 読み取れなければ既定6秒
+        const m = lastErr.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/);
+        if (m) {
+          waitSec = Math.ceil(parseFloat(m[1]));
+        }
+        // サーバーの実行時間制限を超えないよう、待機は最大20秒に制限
+        if (waitSec > 20) {
+          return NextResponse.json(
+            {
+              error:
+                "rate_limit_wait:" + waitSec, // クライアント側で長めに待たせる合図
+            },
+            { status: 429 }
+          );
+        }
+        // 最後の試行でなければ待ってリトライ
+        if (attempt < 3) {
+          await sleep((waitSec + 1) * 1000);
+          continue;
+        }
+      }
+
+      // 500系（プレビュー版の一時的失敗）もリトライ
+      if (res.status >= 500 && attempt < 3) {
+        await sleep(1500);
+        continue;
+      }
+
+      // それ以外（401など）は即終了
+      break;
+    }
+
+    // 429で待機しても解消しなかった場合の合図
+    if (lastErr.includes('"code": 429') || lastErr.includes("RESOURCE_EXHAUSTED")) {
+      return NextResponse.json(
+        { error: "rate_limit", detail: lastErr },
+        { status: 429 }
+      );
     }
 
     return NextResponse.json(
