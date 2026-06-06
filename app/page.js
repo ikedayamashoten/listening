@@ -52,7 +52,8 @@ const ACCENTS = [
 ];
 
 function voiceLabel(v) {
-  return `${v.id}（${v.desc}）`;
+  const idx = VOICES.findIndex((x) => x.id === v.id);
+  return `声${idx + 1}（${v.desc}）`;
 }
 function accentLabelEn(accentId) {
   const a = ACCENTS.find((x) => x.id === accentId);
@@ -130,6 +131,22 @@ export default function Home() {
     "Speaker D": 1.0,
     "Speaker E": 1.0,
   });
+
+  // 話者の表示名（編集可能）。内部キーは固定で、画面に出す名前だけ変えられる
+  const [speakerNames, setSpeakerNames] = useState({
+    "Speaker A": "話者A",
+    "Speaker B": "話者B",
+    "Speaker C": "話者C",
+    "Speaker D": "話者D",
+    "Speaker E": "話者E",
+  });
+  function updateSpeakerName(key, name) {
+    setSpeakerNames({ ...speakerNames, [key]: name });
+  }
+  // 表示名を返す（空なら内部キーをそのまま表示）
+  function nameOf(key) {
+    return (speakerNames[key] && speakerNames[key].trim()) || key;
+  }
 
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -448,9 +465,9 @@ export default function Home() {
   return (
     <div className="wrap">
       <header className="hero">
-        <div className="eyebrow">Ikedayama Shoten</div>
-        <h1>Listening Lab</h1>
-        <div className="jp-title">英語リスニング問題ジェネレーター</div>
+        <div className="eyebrow">池田山商店</div>
+        <h1>リスニング問題作成ツール</h1>
+        <div className="jp-title">英語リスニング問題の作成と音声生成</div>
       </header>
 
       {/* モード切替 */}
@@ -578,7 +595,7 @@ export default function Home() {
                       >
                         {usedSpeakers.map((sp) => (
                           <option key={sp} value={sp}>
-                            {sp}
+                            {nameOf(sp)}
                           </option>
                         ))}
                       </select>
@@ -608,7 +625,16 @@ export default function Home() {
               <div className="voice-config">
                 {usedSpeakers.map((sp) => (
                   <div className="speaker-setting" key={sp}>
-                    <div className="ss-name">{sp}</div>
+                    <div className="ss-name-edit">
+                      <span className="ss-name-label">話者名</span>
+                      <input
+                        type="text"
+                        className="ss-name-input"
+                        value={speakerNames[sp]}
+                        placeholder={sp}
+                        onChange={(e) => updateSpeakerName(sp, e.target.value)}
+                      />
+                    </div>
                     <VoicePicker
                       voice={voiceMap[sp]}
                       accent={accentMap[sp]}
@@ -811,7 +837,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="footer-note">池田山商店 — Powered by Gemini</div>
+      <div className="footer-note">リスニング問題作成ツール powered by LLC. IKEDAYAMASHOTEN</div>
     </div>
   );
 }
