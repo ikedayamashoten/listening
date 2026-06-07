@@ -442,6 +442,13 @@ export default function Home() {
     }
   }
 
+  async function handleLogout() {
+    try {
+      await fetch("/api/login", { method: "DELETE" });
+    } catch (_) {}
+    window.location.href = "/login";
+  }
+
   function downloadAudio() {
     if (!audioUrl) return;
     const a = document.createElement("a");
@@ -891,7 +898,12 @@ export default function Home() {
         </div>
       )}
 
-      <div className="footer-note">リスニング問題作成ツール powered by LLC. IKEDAYAMASHOTEN</div>
+      <div className="footer-note">
+        リスニング問題作成ツール powered by LLC. IKEDAYAMASHOTEN
+        <button className="logout-btn" onClick={handleLogout}>
+          ログアウト
+        </button>
+      </div>
     </div>
   );
 }
