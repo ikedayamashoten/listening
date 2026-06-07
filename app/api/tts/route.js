@@ -121,15 +121,18 @@ export async function POST(request) {
         let waitSec = 6; // 読み取れなければ既定6秒
         const m = lastErr.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/);
         if (m) {
-          waitSec = Math.ceil(parseFloat(m[1]));
+          const parsed = Math.ceil(parseFloat(m[1]));
+          // おかしな値（極端に大きい等）は採用しない
+          if (Number.isFinite(parsed) && parsed > 0 && parsed <= 60) {
+            waitSec = parsed;
+          }
         }
         // サーバーの実行時間制限を超えないよう、待機は最大20秒に制限
         if (waitSec > 20) {
+          // クライアント側で長めに待たせる合図（最大60秒に丸める）
+          const clientWait = Math.min(waitSec, 60);
           return NextResponse.json(
-            {
-              error:
-                "rate_limit_wait:" + waitSec, // クライアント側で長めに待たせる合図
-            },
+            { error: "rate_limit_wait:" + clientWait },
             { status: 429 }
           );
         }

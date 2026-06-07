@@ -300,8 +300,11 @@ export default function Home() {
             if (m) waitSec = Math.ceil(parseFloat(m[1]));
           }
         } catch (_) {}
-        // 上限のリセットは1分単位のことが多いので、最低でも少し長めに待つ
+        // 念のため数値チェック。おかしな値なら既定値に戻す
+        if (!Number.isFinite(waitSec) || waitSec <= 0) waitSec = 15;
+        // 待機は必ず10〜60秒の範囲に収める（異常に長い待機を防ぐ）
         if (waitSec < 10) waitSec = 10;
+        if (waitSec > 60) waitSec = 60;
         if (onWait) onWait(waitSec);
         await sleep((waitSec + 2) * 1000);
         continue;
@@ -625,6 +628,13 @@ export default function Home() {
             >
               {loading ? "生成中…" : "問題を作成する"}
             </button>
+
+            {loading && statusText && !result && (
+              <div className="status">
+                <span className="spinner"></span>
+                {statusText}
+              </div>
+            )}
           </div>
 
           {/* 生成結果 */}
@@ -725,6 +735,13 @@ export default function Home() {
               >
                 {loading ? "生成中…" : "音声を生成する"}
               </button>
+
+              {loading && statusText && (
+                <div className="status">
+                  <span className="spinner"></span>
+                  {statusText}
+                </div>
+              )}
 
               {audioUrl && (
                 <>
@@ -879,6 +896,13 @@ export default function Home() {
             {loading ? "生成中…" : "音声を生成する"}
           </button>
 
+          {loading && statusText && (
+            <div className="status">
+              <span className="spinner"></span>
+              {statusText}
+            </div>
+          )}
+
           {audioUrl && (
             <>
               <div className="divider"></div>
@@ -888,13 +912,6 @@ export default function Home() {
               </button>
             </>
           )}
-        </div>
-      )}
-
-      {loading && statusText && (
-        <div className="status">
-          <span className="spinner"></span>
-          {statusText}
         </div>
       )}
 

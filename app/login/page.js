@@ -63,10 +63,6 @@ export default function LoginPage() {
         <button className="btn btn-primary" onClick={handleLogin} disabled={loading}>
           {loading ? "確認中…" : "ログイン"}
         </button>
-
-        <p className="login-note">
-          パスワードが分からない場合は、配布元（池田山商店）にお問い合わせください。
-        </p>
       </div>
 
       <div className="footer-note">
