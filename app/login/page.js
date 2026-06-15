@@ -5,11 +5,16 @@ import "../globals.css";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
+  const [schoolCode, setSchoolCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
     setError("");
+    if (!schoolCode.trim()) {
+      setError("学校コードを入力してください。");
+      return;
+    }
     if (!password.trim()) {
       setError("パスワードを入力してください。");
       return;
@@ -19,13 +24,12 @@ export default function LoginPage() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, schoolCode }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "ログインに失敗しました。");
       }
-      // 成功したらトップへ
       window.location.href = "/";
     } catch (e) {
       setError(String(e.message || e));
@@ -43,10 +47,22 @@ export default function LoginPage() {
         <div className="login-head">
           <div className="login-eyebrow">池田山商店</div>
           <h1 className="login-title">リスニング問題作成ツール</h1>
-          <p className="login-sub">ご利用にはパスワードが必要です</p>
+          <p className="login-sub">学校コードとパスワードを入力してください</p>
         </div>
 
         {error && <div className="error">{error}</div>}
+
+        <div className="field">
+          <label>学校コード</label>
+          <input
+            type="text"
+            value={schoolCode}
+            placeholder="学校コードを入力"
+            onChange={(e) => setSchoolCode(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+          />
+        </div>
 
         <div className="field">
           <label>パスワード</label>
@@ -56,7 +72,6 @@ export default function LoginPage() {
             placeholder="パスワードを入力"
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={handleKeyDown}
-            autoFocus
           />
         </div>
 
